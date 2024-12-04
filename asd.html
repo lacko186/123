@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <title>Kaposvár Intelligens Buszkövetés</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyArXtWdllsylygVw5t_k-22sXUJn-jMU8k&libraries=places&callback=initMap&loading=async"></script>
+    <style>
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 0.7; }
+            50% { transform: scale(1.05); opacity: 1; }
+            100% { transform: scale(1); opacity: 0.7; }
+        }
+        .bus-status-badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.375rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans">
+    <div class="container mx-auto p-4">
+        <div class="bg-white shadow-2xl rounded-xl overflow-hidden">
+            <div class="p-4 bg-blue-700 text-white flex justify-between items-center">
+                <h1 class="text-3xl font-bold">Kaposvár Intelligens Buszkövetés</h1>
+                <div id="system-time" class="text-xl font-medium"></div>
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-4 p-4 bg-gray-50">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Válasszon buszjáratot</label>
+                    <select id="route-selector" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                        <option value="">Összes járat</option>
+                    </select>
+                </div>
+           
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-4 p-4">
+                <div id="map" class="h-[600px] w-full rounded-lg shadow-xl"></div>
+                <div id="route-info" class="bg-white p-6 rounded-lg shadow-md overflow-y-auto max-h-[600px]">
+                    <h2 class="text-2xl font-semibold mb-4 text-blue-700">Járat Információk</h2>
+                    <div id="route-details" class="space-y-3"></div>
+                    <div id="stop-list" class="mt-6"></div>
+                </div>
+            </div>
+
+           
+        </div>
+    </div>
+
+    <script>
+        let map, directionsService, directionsRenderer, trafficLayer;
+        let markers = [];
+        let routeMarkers = [];
+        let simulatedTraffic = {};
+
+        // Enhanced Routes with More Realistic Data
+        const ROUTES = [
+            {
+                number: "12",
+                name: "Helyi autóbusz-állomás - Sopron u. - Laktanya",
+                start: "Autóbusz-állomás, Kaposvár",
+                end: "Laktanya, Kaposvár",
+                stops: [
+                { "name": "Autóbusz-állomás", "lat": 46.353712944816756, "lng": 17.790623009204865 },
+                { "name": "Corso", "lat": 46.3581, "lng": 17.7918 },
+                { "name": "Zárda u.", "lat": 46.3594, "lng": 17.7925 },
+                { "name": "Honvéd u.", "lat": 46.3608, "lng": 17.7932 },
+                { "name": "Arany J. tér", "lat": 46.3620, "lng": 17.7940 },
+                { "name": "Losonc-köz", "lat": 46.3628, "lng": 17.7952 },
+                { "name": "Brassó u.", "lat": 46.3640, "lng": 17.7965 },
+                { "name": "Sopron u.", "lat": 46.378899252341710, "lng": 17.781264781951904 },
+                { "name": "Búzavirág u.", "lat": 46.3662, "lng": 17.7836 },
+                { "name": "Laktanya", "lat": 46.3668, "lng": 17.7955 }
+                ],
+                currentLocation: { lat: 46.366, lng: 17.791 },
+                route: null,
+                currentDelay: 0
+            },
+            {
+                number: "13",
+                name: "Helyi autóbusz-állomás - Kecelhegy - Helyi autóbusz-állomás",
+                start: "Laktanya, Kaposvár",
+                end: "Zöldfa u., Kaposvár",
+                stops: [
+                { "name": "Helyi autóbusz-állomás", "lat": 46.353712944816756, "lng": 17.790623009204865 },
+                { "name": "Berzsenyi u. felüljáró", "lat": 46.3565, "lng": 17.7925 },
+                { "name": "Berzsenyi u. 30.", "lat": 46.3580, "lng": 17.7935 },
+                { "name": "Füredi úti csomópont", "lat": 46.3600, "lng": 17.7950 },
+                { "name": "Városi könyvtár", "lat": 46.3610, "lng": 17.7960 },
+                { "name": "Vasútköz", "lat": 46.3630, "lng": 17.7970 },
+                { "name": "Hajnóczy u. csp.", "lat": 46.3650, "lng": 17.7980 },
+                { "name": "Mátyás k. u., forduló", "lat": 46.3670, "lng": 17.7990 },
+                { "name": "Kecelhegyalja u.", "lat": 46.3680, "lng": 17.8000 },
+                { "name": "Kőrösi Cs. S. u.", "lat": 46.3690, "lng": 17.8010 },
+                { "name": "Kecelhegyi iskola", "lat": 46.3700, "lng": 17.8020 },
+                { "name": "Bethlen G. u.", "lat": 46.3710, "lng": 17.8030 },
+                { "name": "Magyar Nobel-díjasok tere", "lat": 46.3720, "lng": 17.8040 },
+                { "name": "Eger u.", "lat": 46.3730, "lng": 17.8050 },
+                { "name": "Állatkórház", "lat": 46.3740, "lng": 17.8060 },
+                { "name": "Kölcsey u.", "lat": 46.3750, "lng": 17.8070 },
+                { "name": "Tompa M. u.", "lat": 46.3760, "lng": 17.8080 },
+                { "name": "Berzsenyi u. felüljáró", "lat": 46.3565, "lng": 17.7925 },
+                { "name": "Helyi autóbusz-állomás", "lat": 46.353712944816756, "lng": 17.790623009204865 }
+                ],
+                currentLocation: { lat: 46.368, lng: 17.795 },
+               
+                route: null,
+                currentDelay: 0
+            },
+            {
+                number: "20",
+                name: "Raktár u. - Laktanya - Videoton",
+                start: "Laktanya, Kaposvár",
+                end: "Zöldfa u., Kaposvár",
+                stops: [
+                { "name": "Raktár u.", "lat": 46.3545, "lng": 17.7920 },
+                { "name": "Raktár u. 2.", "lat": 46.3550, "lng": 17.7930 },
+                { "name": "Jutai u. 45.", "lat": 46.3560, "lng": 17.7940 },
+                { "name": "Tóth Á. u.", "lat": 46.3570, "lng": 17.7950 },
+                { "name": "Jutai u. 24.", "lat": 46.3580, "lng": 17.7960 },
+                { "name": "Hajnóczy u. csp.", "lat": 46.3650, "lng": 17.7980 },
+                { "name": "Vasútköz", "lat": 46.3630, "lng": 17.7970 },
+                { "name": "Városi könyvtár", "lat": 46.3610, "lng": 17.7960 },
+                { "name": "Füredi úti csomópont", "lat": 46.3600, "lng": 17.7950 },
+                { "name": "Toldi lakónegyed", "lat": 46.3590, "lng": 17.7945 },
+                { "name": "Kinizsi ltp.", "lat": 46.3585, "lng": 17.7940 },
+                { "name": "Búzavirág u.", "lat": 46.3662, "lng": 17.7836 },
+                { "name": "Laktanya", "lat": 46.3668, "lng": 17.7955 },
+                { "name": "Laktanya", "lat": 46.3668, "lng": 17.7955 },
+                { "name": "Búzavirág u.", "lat": 46.3662, "lng": 17.7836 },
+                { "name": "Nagyszeben u.", "lat": 46.3670, "lng": 17.7825 },
+                { "name": "Losonc-köz", "lat": 46.3628, "lng": 17.7952 },
+                { "name": "Arany J. tér", "lat": 46.3620, "lng": 17.7940 },
+                { "name": "ÁNTSZ", "lat": 46.3605, "lng": 17.7925 },
+                { "name": "Pázmány P. u.", "lat": 46.3595, "lng": 17.7915 },
+                { "name": "Kisgát", "lat": 46.3585, "lng": 17.7905 },
+                { "name": "Mező u. csp.", "lat": 46.3575, "lng": 17.7895 },
+                { "name": "Kenyérgyár u. 1.", "lat": 46.3565, "lng": 17.7885 },
+                { "name": "Videoton", "lat": 46.3555, "lng": 17.7875 }
+                ],
+                currentLocation: { lat: 46.368, lng: 17.795 },
+               
+                route: null,
+                currentDelay: 0
+            },
+            {
+                number: "21",
+                name: "Raktár u. - Videoton",
+                start: "Laktanya, Kaposvár",
+                end: "Zöldfa u., Kaposvár",
+                stops: [
+                    { name: "Laktanya", lat: 46.3668, lng: 17.7955 },
+                    { name: "Kórház", lat: 46.3650, lng: 17.7940 },
+                    { name: "Munkácsy tér", lat: 46.3640, lng: 17.7930 },
+                    { name: "Zöldfa u.", lat: 46.3630, lng: 17.7920 }
+                ],
+                currentLocation: { lat: 46.368, lng: 17.795 },
+               
+                route: null,
+                currentDelay: 0
+            },
+            {
+                number: "23",
+                name: "Kaposfüred forduló - Füredi csp. - Kaposvári Egyetem",
+                start: "Laktanya, Kaposvár",
+                end: "Zöldfa u., Kaposvár",
+                stops: [
+                    { name: "Laktanya", lat: 46.3668, lng: 17.7955 },
+                    { name: "Kórház", lat: 46.3650, lng: 17.7940 },
+                    { name: "Munkácsy tér", lat: 46.3640, lng: 17.7930 },
+                    { name: "Zöldfa u.", lat: 46.3630, lng: 17.7920 }
+                ],
+                currentLocation: { lat: 46.368, lng: 17.795 },
+               
+                route: null,
+                currentDelay: 0
+            },
+            {
+                number: "26",
+                name: "Kaposfüred forduló - Losonc köz - Videoton - METYX",
+                start: "Laktanya, Kaposvár",
+                end: "Zöldfa u., Kaposvár",
+                stops: [
+                    { name: "Laktanya", lat: 46.3668, lng: 17.7955 },
+                    { name: "Kórház", lat: 46.3650, lng: 17.7940 },
+                    { name: "Munkácsy tér", lat: 46.3640, lng: 17.7930 },
+                    { name: "Zöldfa u.", lat: 46.3630, lng: 17.7920 }
+                ],
+                currentLocation: { lat: 46.368, lng: 17.795 },
+               
+                route: null,
+                currentDelay: 0
+            },
+            {
+                number: "27",
+                name: "Laktanya - Füredi u. csp. - KOMÉTA",
+                start: "Laktanya, Kaposvár",
+                end: "Zöldfa u., Kaposvár",
+                stops: [
+                    { name: "Laktanya", lat: 46.3668, lng: 17.7955 },
+                    { name: "Kórház", lat: 46.3650, lng: 17.7940 },
+                    { name: "Munkácsy tér", lat: 46.3640, lng: 17.7930 },
+                    { name: "Zöldfa u.", lat: 46.3630, lng: 17.7920 }
+                ],
+                currentLocation: { lat: 46.368, lng: 17.795 },
+               
+                route: null,
+                currentDelay: 0
+            },
+            {
+                number: "31",
+                name: "Helyi autóbusz-állomás - Egyenesi u. forduló",
+                start: "Laktanya, Kaposvár",
+                end: "Zöldfa u., Kaposvár",
+                stops: [
+                    { name: "Laktanya", lat: 46.3668, lng: 17.7955 },
+                    { name: "Kórház", lat: 46.3650, lng: 17.7940 },
+                    { name: "Munkácsy tér", lat: 46.3640, lng: 17.7930 },
+                    { name: "Zöldfa u.", lat: 46.3630, lng: 17.7920 }
+                ],
+                currentLocation: { lat: 46.368, lng: 17.795 },
+               
+                route: null,
+                currentDelay: 0
+            },
+            {
+                number: "32",
+                name: "Helyi autóbuszállomás - Kecelhegy - Helyi autóbusz-állomás",
+                start: "Laktanya, Kaposvár",
+                end: "Zöldfa u., Kaposvár",
+                stops: [
+                    { name: "Laktanya", lat: 46.3668, lng: 17.7955 },
+                    { name: "Kórház", lat: 46.3650, lng: 17.7940 },
+                    { name: "Munkácsy tér", lat: 46.3640, lng: 17.7930 },
+                    { name: "Zöldfa u.", lat: 46.3630, lng: 17.7920 }
+                ],
+                currentLocation: { lat: 46.368, lng: 17.795 },
+               
+                route: null,
+                currentDelay: 0
+            },
+            {
+                number: "33",
+                name: "Helyi aut. áll. - Egyenesi u. - Kecelhegy - Helyi aut. áll.",
+                start: "Laktanya, Kaposvár",
+                end: "Zöldfa u., Kaposvár",
+                stops: [
+                    { name: "Laktanya", lat: 46.3668, lng: 17.7955 },
+                    { name: "Kórház", lat: 46.3650, lng: 17.7940 },
+                    { name: "Munkácsy tér", lat: 46.3640, lng: 17.7930 },
+                    { name: "Zöldfa u.", lat: 46.3630, lng: 17.7920 }
+                ],
+                currentLocation: { lat: 46.368, lng: 17.795 },
+               
+                route: null,
+                currentDelay: 0
+            },
+            {
+                number: "40",
+                name: "Koppány vezér u - 67-es út - Raktár u.",
+                start: "Laktanya, Kaposvár",
+                end: "Zöldfa u., Kaposvár",
+                stops: [
+                    { name: "Laktanya", lat: 46.3668, lng: 17.7955 },
+                    { name: "Kórház", lat: 46.3650, lng: 17.7940 },
+                    { name: "Munkácsy tér", lat: 46.3640, lng: 17.7930 },
+                    { name: "Zöldfa u.", lat: 46.3630, lng: 17.7920 }
+                ],
+                currentLocation: { lat: 46.368, lng: 17.795 },
+               
+                route: null,
+                currentDelay: 0
+            },
+            {
+                number: "41",
+                name: "Koppány vezér u - Bartók B. u. - Raktár u.",
+                start: "Laktanya, Kaposvár",
+                end: "Zöldfa u., Kaposvár",
+                stops: [
+                    { name: "Laktanya", lat: 46.3668, lng: 17.7955 },
+                    { name: "Kórház", lat: 46.3650, lng: 17.7940 },
+                    { name: "Munkácsy tér", lat: 46.3640, lng: 17.7930 },
+                    { name: "Zöldfa u.", lat: 46.3630, lng: 17.7920 }
+                ],
+                currentLocation: { lat: 46.368, lng: 17.795 },
+               
+                route: null,
+                currentDelay: 0
+            },
+            {
+                number: "42",
+                name: "Töröcske forduló - Kórház - Laktanya",
+                start: "Laktanya, Kaposvár",
+                end: "Zöldfa u., Kaposvár",
+                stops: [
+                    { name: "Laktanya", lat: 46.3668, lng: 17.7955 },
+                    { name: "Kórház", lat: 46.3650, lng: 17.7940 },
+                    { name: "Munkácsy tér", lat: 46.3640, lng: 17.7930 },
+                    { name: "Zöldfa u.", lat: 46.3630, lng: 17.7920 }
+                ],
+                currentLocation: { lat: 46.368, lng: 17.795 },
+               
+                route: null,
+                currentDelay: 0
+            },
+            {
+                number: "43",
+                name: "Helyi autóbusz-állomás - Kórház- Laktanya - Raktár utca - Helyi autóbusz-állomás",
+                start: "Laktanya, Kaposvár",
+                end: "Zöldfa u., Kaposvár",
+                stops: [
+                    { name: "Laktanya", lat: 46.3668, lng: 17.7955 },
+                    { name: "Kórház", lat: 46.3650, lng: 17.7940 },
+                    { name: "Munkácsy tér", lat: 46.3640, lng: 17.7930 },
+                    { name: "Zöldfa u.", lat: 46.3630, lng: 17.7920 }
+                ],
+                currentLocation: { lat: 46.368, lng: 17.795 },
+               
+                route: null,
+                currentDelay: 0
+            },
+            {
+                number: "44",
+                name: "Helyi autóbusz-állomás - Raktár utca - Laktanya -Arany János tér - Helyi autóbusz-állomás",
+                start: "Laktanya, Kaposvár",
+                end: "Zöldfa u., Kaposvár",
+                stops: [
+                    { name: "Laktanya", lat: 46.3668, lng: 17.7955 },
+                    { name: "Kórház", lat: 46.3650, lng: 17.7940 },
+                    { name: "Munkácsy tér", lat: 46.3640, lng: 17.7930 },
+                    { name: "Zöldfa u.", lat: 46.3630, lng: 17.7920 }
+                ],
+                currentLocation: { lat: 46.368, lng: 17.795 },
+               
+                route: null,
+                currentDelay: 0
+            },
+            {
+                number: "45",
+                name: "Helyi autóbusz-állomás - 67-es út - Koppány vezér u.",
+                start: "Laktanya, Kaposvár",
+                end: "Zöldfa u., Kaposvár",
+                stops: [
+                    { name: "Laktanya", lat: 46.3668, lng: 17.7955 },
+                    { name: "Kórház", lat: 46.3650, lng: 17.7940 },
+                    { name: "Munkácsy tér", lat: 46.3640, lng: 17.7930 },
+                    { name: "Zöldfa u.", lat: 46.3630, lng: 17.7920 }
+                ],
+                currentLocation: { lat: 46.368, lng: 17.795 },
+               
+                route: null,
+                currentDelay: 0
+            },
+            {
+                number: "46",
+                name: "Helyi autóbusz-állomás - Töröcske forduló",
+                start: "Laktanya, Kaposvár",
+                end: "Zöldfa u., Kaposvár",
+                stops: [
+                    { name: "Laktanya", lat: 46.3668, lng: 17.7955 },
+                    { name: "Kórház", lat: 46.3650, lng: 17.7940 },
+                    { name: "Munkácsy tér", lat: 46.3640, lng: 17.7930 },
+                    { name: "Zöldfa u.", lat: 46.3630, lng: 17.7920 }
+                ],
+                currentLocation: { lat: 46.368, lng: 17.795 },
+               
+                route: null,
+                currentDelay: 0
+            },
+            {
+                number: "47",
+                name: "Koppány vezér u.- Kórház - Kaposfüred forduló",
+                start: "Laktanya, Kaposvár",
+                end: "Zöldfa u., Kaposvár",
+                stops: [
+                    { name: "Laktanya", lat: 46.3668, lng: 17.7955 },
+                    { name: "Kórház", lat: 46.3650, lng: 17.7940 },
+                    { name: "Munkácsy tér", lat: 46.3640, lng: 17.7930 },
+                    { name: "Zöldfa u.", lat: 46.3630, lng: 17.7920 }
+                ],
+                currentLocation: { lat: 46.368, lng: 17.795 },
+               
+                route: null,
+                currentDelay: 0
+            },
+            {
+                number: "51",
+                name: "Laktanya - Sopron u. - Rómahegy",
+                start: "Laktanya, Kaposvár",
+                end: "Zöldfa u., Kaposvár",
+                stops: [
+                    { name: "Laktanya", lat: 46.3668, lng: 17.7955 },
+                    { name: "Kórház", lat: 46.3650, lng: 17.7940 },
+                    { name: "Munkácsy tér", lat: 46.3640, lng: 17.7930 },
+                    { name: "Zöldfa u.", lat: 46.3630, lng: 17.7920 }
+                ],
+                currentLocation: { lat: 46.368, lng: 17.795 },
+               
+                route: null,
+                currentDelay: 0
+            },
+            {
+                number: "61",
+                name: "Helyi- autóbuszállomás - Béla király u.",
+                start: "Laktanya, Kaposvár",
+                end: "Zöldfa u., Kaposvár",
+                stops: [
+                    { name: "Laktanya", lat: 46.3668, lng: 17.7955 },
+                    { name: "Kórház", lat: 46.3650, lng: 17.7940 },
+                    { name: "Munkácsy tér", lat: 46.3640, lng: 17.7930 },
+                    { name: "Zöldfa u.", lat: 46.3630, lng: 17.7920 }
+                ],
+                currentLocation: { lat: 46.368, lng: 17.795 },
+               
+                route: null,
+                currentDelay: 0
+            },
+            {
+                number: "62",
+                name: "Helyi autóbusz-állomás - Városi fürdő - Béla király u.",
+                start: "Laktanya, Kaposvár",
+                end: "Zöldfa u., Kaposvár",
+                stops: [
+                    { name: "Laktanya", lat: 46.3668, lng: 17.7955 },
+                    { name: "Kórház", lat: 46.3650, lng: 17.7940 },
+                    { name: "Munkácsy tér", lat: 46.3640, lng: 17.7930 },
+                    { name: "Zöldfa u.", lat: 46.3630, lng: 17.7920 }
+                ],
+                currentLocation: { lat: 46.368, lng: 17.795 },
+               
+                route: null,
+                currentDelay: 0
+            },
+            {
+                number: "70",
+                name: "Helyi autóbusz-állomás - Kaposfüred",
+                start: "Laktanya, Kaposvár",
+                end: "Zöldfa u., Kaposvár",
+                stops: [
+                    { name: "Laktanya", lat: 46.3668, lng: 17.7955 },
+                    { name: "Kórház", lat: 46.3650, lng: 17.7940 },
+                    { name: "Munkácsy tér", lat: 46.3640, lng: 17.7930 },
+                    { name: "Zöldfa u.", lat: 46.3630, lng: 17.7920 }
+                ],
+                currentLocation: { lat: 46.368, lng: 17.795 },
+               
+                route: null,
+                currentDelay: 0
+            },
+            {
+                number: "71",
+                name: "Kaposfüred forduló - Kaposszentjakab forduló",
+                start: "Laktanya, Kaposvár",
+                end: "Zöldfa u., Kaposvár",
+                stops: [
+                    { name: "Laktanya", lat: 46.3668, lng: 17.7955 },
+                    { name: "Kórház", lat: 46.3650, lng: 17.7940 },
+                    { name: "Munkácsy tér", lat: 46.3640, lng: 17.7930 },
+                    { name: "Zöldfa u.", lat: 46.3630, lng: 17.7920 }
+                ],
+                currentLocation: { lat: 46.368, lng: 17.795 },
+               
+                route: null,
+                currentDelay: 0
+            },
+            {
+                number: "72",
+                name: "Kaposfüred forduló - Hold u. - Kaposszentjakab forduló",
+                start: "Laktanya, Kaposvár",
+                end: "Zöldfa u., Kaposvár",
+                stops: [
+                    { name: "Laktanya", lat: 46.3668, lng: 17.7955 },
+                    { name: "Kórház", lat: 46.3650, lng: 17.7940 },
+                    { name: "Munkácsy tér", lat: 46.3640, lng: 17.7930 },
+                    { name: "Zöldfa u.", lat: 46.3630, lng: 17.7920 }
+                ],
+                currentLocation: { lat: 46.368, lng: 17.795 },
+               
+                route: null,
+                currentDelay: 0
+            },
+            {
+                number: "73",
+                name: "Kaposfüred forduló - KOMÉTA - Kaposszentjakab forduló",
+                start: "Laktanya, Kaposvár",
+                end: "Zöldfa u., Kaposvár",
+                stops: [
+                    { name: "Laktanya", lat: 46.3668, lng: 17.7955 },
+                    { name: "Kórház", lat: 46.3650, lng: 17.7940 },
+                    { name: "Munkácsy tér", lat: 46.3640, lng: 17.7930 },
+                    { name: "Zöldfa u.", lat: 46.3630, lng: 17.7920 }
+                ],
+                currentLocation: { lat: 46.368, lng: 17.795 },
+               
+                route: null,
+                currentDelay: 0
+            },
+            {
+                number: "74",
+                name: "Hold utca - Helyi autóbusz-állomás",
+                start: "Laktanya, Kaposvár",
+                end: "Zöldfa u., Kaposvár",
+                stops: [
+                    { name: "Laktanya", lat: 46.3668, lng: 17.7955 },
+                    { name: "Kórház", lat: 46.3650, lng: 17.7940 },
+                    { name: "Munkácsy tér", lat: 46.3640, lng: 17.7930 },
+                    { name: "Zöldfa u.", lat: 46.3630, lng: 17.7920 }
+                ],
+                currentLocation: { lat: 46.368, lng: 17.795 },
+               
+                route: null,
+                currentDelay: 0
+            },
+            {
+                number: "75",
+                name: "Helyi autóbusz-állomás - Kaposszentjakab",
+                start: "Laktanya, Kaposvár",
+                end: "Zöldfa u., Kaposvár",
+                stops: [
+                    { name: "Laktanya", lat: 46.3668, lng: 17.7955 },
+                    { name: "Kórház", lat: 46.3650, lng: 17.7940 },
+                    { name: "Munkácsy tér", lat: 46.3640, lng: 17.7930 },
+                    { name: "Zöldfa u.", lat: 46.3630, lng: 17.7920 }
+                ],
+                currentLocation: { lat: 46.368, lng: 17.795 },
+               
+                route: null,
+                currentDelay: 0
+            },
+            {
+                number: "81",
+                name: "Helyi autóbusz-állomás - Hősök temploma - Toponár forduló",
+                start: "Laktanya, Kaposvár",
+                end: "Zöldfa u., Kaposvár",
+                stops: [
+                    { name: "Laktanya", lat: 46.3668, lng: 17.7955 },
+                    { name: "Kórház", lat: 46.3650, lng: 17.7940 },
+                    { name: "Munkácsy tér", lat: 46.3640, lng: 17.7930 },
+                    { name: "Zöldfa u.", lat: 46.3630, lng: 17.7920 }
+                ],
+                currentLocation: { lat: 46.368, lng: 17.795 },
+               
+                route: null,
+                currentDelay: 0
+            },
+            {
+                number: "82",
+                name: "Helyi autóbusz-állomás - Kórház - Toponár Szabó P. u.",
+                start: "Laktanya, Kaposvár",
+                end: "Zöldfa u., Kaposvár",
+                stops: [
+                    { name: "Laktanya", lat: 46.3668, lng: 17.7955 },
+                    { name: "Kórház", lat: 46.3650, lng: 17.7940 },
+                    { name: "Munkácsy tér", lat: 46.3640, lng: 17.7930 },
+                    { name: "Zöldfa u.", lat: 46.3630, lng: 17.7920 }
+                ],
+                currentLocation: { lat: 46.368, lng: 17.795 },
+               
+                route: null,
+                currentDelay: 0
+            },
+            {
+                number: "83",
+                name: "Helyi autóbusz-állomás - Szabó P. u. - Toponár forduló",
+                start: "Laktanya, Kaposvár",
+                end: "Zöldfa u., Kaposvár",
+                stops: [
+                    { name: "Laktanya", lat: 46.3668, lng: 17.7955 },
+                    { name: "Kórház", lat: 46.3650, lng: 17.7940 },
+                    { name: "Munkácsy tér", lat: 46.3640, lng: 17.7930 },
+                    { name: "Zöldfa u.", lat: 46.3630, lng: 17.7920 }
+                ],
+                currentLocation: { lat: 46.368, lng: 17.795 },
+               
+                route: null,
+                currentDelay: 0
+            },
+            {
+                number: "84",
+                name: "Helyi autóbusz-állomás - Toponár, forduló - Répáspuszta",
+                start: "Laktanya, Kaposvár",
+                end: "Zöldfa u., Kaposvár",
+                stops: [
+                    { name: "Laktanya", lat: 46.3668, lng: 17.7955 },
+                    { name: "Kórház", lat: 46.3650, lng: 17.7940 },
+                    { name: "Munkácsy tér", lat: 46.3640, lng: 17.7930 },
+                    { name: "Zöldfa u.", lat: 46.3630, lng: 17.7920 }
+                ],
+                currentLocation: { lat: 46.368, lng: 17.795 },
+               
+                route: null,
+                currentDelay: 0
+            },
+            {
+                number: "85",
+                name: "Helyi autóbusz-állomás - Kisgát- Helyi autóbusz-állomás",
+                start: "Laktanya, Kaposvár",
+                end: "Zöldfa u., Kaposvár",
+                stops: [
+                    { name: "Laktanya", lat: 46.3668, lng: 17.7955 },
+                    { name: "Kórház", lat: 46.3650, lng: 17.7940 },
+                    { name: "Munkácsy tér", lat: 46.3640, lng: 17.7930 },
+                    { name: "Zöldfa u.", lat: 46.3630, lng: 17.7920 }
+                ],
+                currentLocation: { lat: 46.368, lng: 17.795 },
+               
+                route: null,
+                currentDelay: 0
+            },
+            {
+                number: "86",
+                name: "Helyi autóbusz-állomás - METYX - Szennyvíztelep",
+                start: "Laktanya, Kaposvár",
+                end: "Zöldfa u., Kaposvár",
+                stops: [
+                    { name: "Laktanya", lat: 46.3668, lng: 17.7955 },
+                    { name: "Kórház", lat: 46.3650, lng: 17.7940 },
+                    { name: "Munkácsy tér", lat: 46.3640, lng: 17.7930 },
+                    { name: "Zöldfa u.", lat: 46.3630, lng: 17.7920 }
+                ],
+                currentLocation: { lat: 46.368, lng: 17.795 },
+               
+                route: null,
+                currentDelay: 0
+            },
+            {
+                number: "87",
+                name: "Helyi autóbusz állomás - Videoton - METYX",
+                start: "Laktanya, Kaposvár",
+                end: "Zöldfa u., Kaposvár",
+                stops: [
+                    { name: "Laktanya", lat: 46.3668, lng: 17.7955 },
+                    { name: "Kórház", lat: 46.3650, lng: 17.7940 },
+                    { name: "Munkácsy tér", lat: 46.3640, lng: 17.7930 },
+                    { name: "Zöldfa u.", lat: 46.3630, lng: 17.7920 }
+                ],
+                currentLocation: { lat: 46.368, lng: 17.795 },
+               
+                route: null,
+                currentDelay: 0
+            },
+            {
+                number: "88",
+                name: "Helyi autóbusz-állomás - Videoton",
+                start: "Laktanya, Kaposvár",
+                end: "Zöldfa u., Kaposvár",
+                stops: [
+                    { name: "Laktanya", lat: 46.3668, lng: 17.7955 },
+                    { name: "Kórház", lat: 46.3650, lng: 17.7940 },
+                    { name: "Munkácsy tér", lat: 46.3640, lng: 17.7930 },
+                    { name: "Zöldfa u.", lat: 46.3630, lng: 17.7920 }
+                ],
+                currentLocation: { lat: 46.368, lng: 17.795 },
+               
+                route: null,
+                currentDelay: 0
+            },
+            {
+                number: "89",
+                name: "Helyi autóbusz-állomás - Kaposvári Egyetem",
+                start: "Laktanya, Kaposvár",
+                end: "Zöldfa u., Kaposvár",
+                stops: [
+                    { name: "Laktanya", lat: 46.3668, lng: 17.7955 },
+                    { name: "Kórház", lat: 46.3650, lng: 17.7940 },
+                    { name: "Munkácsy tér", lat: 46.3640, lng: 17.7930 },
+                    { name: "Zöldfa u.", lat: 46.3630, lng: 17.7920 }
+                ],
+                currentLocation: { lat: 46.368, lng: 17.795 },
+               
+                route: null,
+                currentDelay: 0
+            },
+            {
+                number: "90",
+                name: "Helyi autóbusz-állomás - Rómahegy",
+                start: "Laktanya, Kaposvár",
+                end: "Zöldfa u., Kaposvár",
+                stops: [
+                    { name: "Laktanya", lat: 46.3668, lng: 17.7955 },
+                    { name: "Kórház", lat: 46.3650, lng: 17.7940 },
+                    { name: "Munkácsy tér", lat: 46.3640, lng: 17.7930 },
+                    { name: "Zöldfa u.", lat: 46.3630, lng: 17.7920 }
+                ],
+                currentLocation: { lat: 46.368, lng: 17.795 },
+               
+                route: null,
+                currentDelay: 0
+            },
+            {
+                number: "91",
+                name: "Rómahegy - Pázmány P u. - Füredi u. csp.",
+                start: "Laktanya, Kaposvár",
+                end: "Zöldfa u., Kaposvár",
+                stops: [
+                    { name: "Laktanya", lat: 46.3668, lng: 17.7955 },
+                    { name: "Kórház", lat: 46.3650, lng: 17.7940 },
+                    { name: "Munkácsy tér", lat: 46.3640, lng: 17.7930 },
+                    { name: "Zöldfa u.", lat: 46.3630, lng: 17.7920 } 
+                ],
+                currentLocation: { lat: 46.368, lng: 17.795 },
+               
+                route: null,
+                currentDelay: 0
+            }
+            
+        ];
+
+        function initMap() {
+            map = new google.maps.Map(document.getElementById('map'), {
+                center: { lat: 46.3636, lng: 17.7910 },
+                zoom: 13,
+                styles: [
+                    { featureType: 'road', elementType: 'all', stylers: [{ color: '#f2f2f2' }] },
+                    { featureType: 'landscape', elementType: 'all', stylers: [{ color: '#f0f0f0' }] }
+                ]
+            });
+
+            // Initialize services
+            directionsService = new google.maps.DirectionsService();
+            directionsRenderer = new google.maps.DirectionsRenderer({ map });
+            trafficLayer = new google.maps.TrafficLayer();
+            trafficLayer.setMap(map);
+
+            setupRouteSelectors();
+            createMarkers();
+            updateSystemTime();
+            updateRealTimeStats();
+
+            // Continuous updates
+            setInterval(updateMarkers, 5000);
+            setInterval(updateSystemTime, 1000);
+            setInterval(updateRealTimeStats, 10000);
+        }
+
+        function setupRouteSelectors() {
+            const routeSelector = document.getElementById('route-selector');
+            const routeDetails = document.getElementById('route-details');
+
+            ROUTES.forEach(route => {
+                const option = document.createElement('option');
+                option.value = route.number;
+                option.textContent = `${route.number} - ${route.name}`;
+                routeSelector.appendChild(option);
+            });
+
+            routeSelector.addEventListener('change', (event) => {
+                const selectedRoute = ROUTES.find(r => r.number === event.target.value);
+                if (selectedRoute) {
+                    displayRouteDetails(selectedRoute);
+                    calculateAndDisplayRoute(selectedRoute);
+                }
+            });
+        }
+        function createMarkers() {
+            ROUTES.forEach(route => {
+                const marker = new google.maps.Marker({
+                    position: route.currentLocation,
+                    map: map,
+                    title: `${route.number} - ${route.name}`,
+                    icon: {
+                        url: "https://maps.gstatic.com/mapfiles/api-3/images/green-dot.png",
+                        scaledSize: new google.maps.Size(40, 40)
+                    }
+                });
+                
+                // Add info window
+                const infoWindow = new google.maps.InfoWindow({
+                    content: `
+                        <strong>Járat: ${route.number}</strong><br>
+                        
+                    `
+                });
+
+                marker.addListener('click', () => {
+                    infoWindow.open(map, marker);
+                });
+
+                markers.push(marker);
+            });
+        }
+
+        function updateMarkers() {
+            markers.forEach((marker, index) => {
+                const route = ROUTES[index];
+                const randomMovement = () => (Math.random() * 0.002 - 0.001);
+                
+                route.currentLocation = {
+                    lat: route.currentLocation.lat + randomMovement(),
+                    lng: route.currentLocation.lng + randomMovement()
+                };
+
+                // Simulate realistic delays
+                route.currentDelay = Math.floor(Math.random() * 8) - 3;  // Between -3 and 5 minutes
+
+                marker.setPosition(route.currentLocation);
+                marker.setTitle(`${route.number} - Késés: ${route.currentDelay} perc`);
+            });
+        }
+
+        function calculateAndDisplayRoute(route) {
+            const waypoints = route.stops.slice(1, -1).map(stop => ({
+                location: new google.maps.LatLng(stop.lat, stop.lng),
+                stopover: true
+            }));
+
+            directionsService.route({
+                origin: new google.maps.LatLng(route.stops[0].lat, route.stops[0].lng),
+                destination: new google.maps.LatLng(route.stops[route.stops.length - 1].lat, route.stops[route.stops.length - 1].lng),
+                waypoints: waypoints,
+                travelMode: google.maps.TravelMode.DRIVING
+            }, (response, status) => {
+                if (status === 'OK') {
+                    directionsRenderer.setDirections(response);
+                    route.route = response;
+                } else {
+                    console.error('Route calculation failed:', status);
+                }
+            });
+        }
+
+        function displayRouteDetails(route) {
+            const detailsContainer = document.getElementById('route-details');
+            detailsContainer.innerHTML = `
+                <div class="bg-blue-50 p-3 rounded-lg">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-lg font-semibold">Járat: ${route.number}</span>
+                        <span class="bus-status-badge ${route.currentDelay > 0 ? 'bg-yellow-200 text-yellow-800' : 'bg-green-200 text-green-800'}">
+                            Késés: ${route.currentDelay} perc
+                        </span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <p><strong>Indulás:</strong> ${route.start}</p>
+                        <p><strong>Érkezés:</strong> ${route.end}</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        
+
+
+        function updateSystemTime() {
+            const systemTimeEl = document.getElementById('system-time');
+            const now = new Date();
+            systemTimeEl.textContent = now.toLocaleString('hu-HU', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+        }
+
+
+        function updateRealTimeStats() {
+            const statsContainer = document.getElementById('real-time-stats');
+            
+        
+            
+            
+            // Simulate additional metrics
+            const totalRoutes = ROUTES.length;
+            const delayedRoutes = ROUTES.filter(route => route.currentDelay > 0).length;
+            
+           
+            // Dynamic traffic status
+            const trafficStatusEl = document.getElementById('dynamic-traffic-status');
+            const conditions = [
+                { text: 'Szabad', color: 'text-green-600' },
+                { text: 'Közepes', color: 'text-yellow-600' },
+                { text: 'Torlódás', color: 'text-red-600' }
+            ];
+         
+        }
+
+        // Error handling and initialization
+        window.onerror = function(message, source, lineno, colno, error) {
+            console.error('Rendszerszintű hiba:', { message, source, lineno, colno, error });
+            alert('Rendszerhiba történt. Kérjük, frissítse az oldalt.');
+        }
+
+        // Ensure Google Maps is loaded
+        window.addEventListener('load', () => {
+            if (typeof google === 'undefined' || !google.maps) {
+                alert('A térképszolgáltatás nem elérhető. Kérjük, ellenőrizze internetkapcsolatát.');
+            }
+        });
+    </script>
+</body>
+</html>
