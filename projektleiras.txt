@@ -1,13 +1,40 @@
-miről szól?
+Miről szól?
+
 	-A projekt célja a Kaposvári Közlekedési Zrt. helyi járatos közlekedésének könnyebb, átláthatóbb felhasználóbarát felületének létrehozása volt.
-	 Az oldal inspirációt ad egy modern közlekedési oldal létrehozásában.
-	 Tekintettel a felhasználókra online egyszerű jegyrendelés késés igazolás opció, valós idejű lekérdezés.
-milyen problémára akar megoldást nyújtani?
+		-A Felhasználói visszajelzések alapján elégedettlenséggel találkoztunk, saját magunk is tapasztaltuk a KKZRT weboldalának bonyolult felépítését.
+	-Az oldal inspirációt ad egy modern közlekedési oldal létrehozásában.
+		-Az projekt kifejezetten a KKZRT-nek készül, de a már meglévő https://www.volanbusz.hu/-nak és https://www.mavcsoport.hu/-nak is nyújthat inspirációt
+	-Tekintettel a felhasználókra online egyszerű jegyrendelés
+		-Külön készítünk jegyrendelés opciót amely könnyen egy űrlap kitöltésével, később fizetési opció hozzáadásával generálhatunk magunknak az utazáshoz szükséges online jegyet
+			jegytípusok: -vonaljegy
+				     -napijegy
+				     -Bérlet (teljes és kedvezményes opció)
+
+késés igazolás opció, valós idejű lekérdezés.
+	-A mostanában jelentkező súlyos Közlekedési akadályokra való tekintettel létrehoztunk egy késés igazolás opciót, amely megkönnyíti mind a felhasználó mind a jegykiadók dolgát.
+	-A felhasználó önmaga tudja előállítani az igazolást, viszont ez visszakereshető és adott esetben szankcionálható, az igazolás pdf formátumban letölthető, elektronikusan igazolt.
+	
+	-A járatok valós időben nyomon követhetőek, lekérdezhetőek kezdetben nem valós adatokkal.
+	//-A Máv-nál tapasztalt felhasználói visszajelzések alapján a járat nyomonkövetés opciót visszahoztuk 
+
+Milyen problémára akar megoldást nyújtani?
+
 	- A https://www.kaposbusz.hu/ weboldal használata statikus, pdfekkel történik a menetrendek megtekintése csak helyben (jegykiadónál) lehet jegyet vásárolni elavult, nehéz használat.
+		-Kezdetben mi is sokszor belefutottunk abba a problémába, hogy kiigazodni a város helyi járatos közlekedésén sokszor problémát okozott, az összes járatinformáció pdfekkel volt elérhető https://www.kaposbusz.hu/letoltheto-menetrend
+	-Az online jegyrendelés a fizikai menetjegyek csökkentése, és a helyi járatok használatára való ösztönzése érdekében hoztuk létre
+		-Eddig a https://www.kaposbusz.hu weboldalán nem találkoztunk online jegyrendelés opcióval, csak fizikai jegyet lehet vásárolni amely felesleges időt és pénzt(előállítás) emészt fel
+
 	- Az egyre sűrűbben jelentkező probléma a késés és annak igazolása az ebből adódó problémák kikerülése, gördülékenyebb tájékozódás a vidékiek számára is.
-mi a cél?
-	- felhasználóbarát környezet kiépítése, utasinformációk, és egyéb szolgáltatás elérhetővé tétele, modern megjelenés.	
- milyen hardver és szoftver eszközök?
+	
+	-a statikus menetrend sokszor bonyolult, erre készítettünk egy dinamikus aktuálisan induló járatfigyelőt.  
+Mi a cél?
+
+	-Felhasználóbarát környezet kiépítése, utasinformációk, és egyéb szolgáltatás elérhetővé tétele, modern megjelenés.
+	-Könnyen használható, értelmezhető utasinformáció
+	-A helyi járatos közlekedés és a tömegközlekedés használatának népszerűsítése
+	
+ Milyen hardver és szoftver eszközök?
+
 	-Windows, macOS, Linux operációs rendszer 
 	-Google Chrome, Mozilla Firefox, Microsoft Edge, Safari Böngésző
 	-Bármilyen okostelefon, táblagép, vagy személyi számítógép
