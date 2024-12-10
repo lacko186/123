@@ -1,0 +1,535 @@
+
+
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <title>Professzionális Bankkártya Fizetés</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            line-height: 1.6;
+            overflow: hidden;
+        }
+
+        .payment-wrapper {
+            display: flex;
+            gap: 30px;
+            background-color: transparent;
+            width: 1000px;
+            max-width: 95%;
+        }
+
+        .card-container {
+            flex: 1;
+            perspective: 1000px;
+        }
+
+        .card {
+            width: 100%;
+            height: 450px;
+            position: relative;
+            transition: transform 0.6s;
+            transform-style: preserve-3d;
+            cursor: pointer;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        }
+
+        .card-front, .card-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            display: flex;
+            border-radius: 15px;
+            overflow: hidden;
+        }
+
+        .card-front {
+            background: linear-gradient(135deg, #4a90e2, #2980b9);
+            color: white;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 30px;
+            background-image: 
+                linear-gradient(135deg, #4a90e2, #2980b9),
+                url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100" opacity="0.1"><circle cx="50" cy="50" r="40" fill="white"/></svg>');
+        }
+
+        .card-back {
+            background: linear-gradient(135deg, #34495e, #2c3e50);
+            transform: rotateY(180deg);
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .card-logo {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .mastercard-logo {
+            width: 60px;
+            height: 40px;
+            background: radial-gradient(circle at center, #ff5f00 30%, #eb001b 70%);
+            clip-path: polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            color: white;
+            font-size: 10px;
+        }
+
+        .card-chip {
+            width: 50px;
+            height: 40px;
+            background: linear-gradient(45deg, #f1c40f, #e67e22);
+            border-radius: 8px;
+        }
+
+        .card-number {
+            font-size: 1.5rem;
+            letter-spacing: 3px;
+            margin-top: 20px;
+            font-weight: 300;
+            font-family: 'Courier New', monospace;
+        }
+
+        .card-details {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 20px;
+        }
+
+        .card-back-content {
+            width: 100%;
+            height: 60px;
+            background-color: #f1f1f1;
+            margin-top: 20px;
+        }
+
+        .security-code {
+            background-color: white;
+            padding: 5px 10px;
+            border-radius: 3px;
+            margin-top: 10px;
+        }
+
+        .payment-container {
+            flex: 1;
+            background-color: white;
+            border: none;
+            box-shadow: 
+                0 15px 35px rgba(0,0,0,0.1), 
+                0 5px 15px rgba(0,0,0,0.08);
+            padding: 40px;
+            transition: all 0.3s ease;
+            border-radius: 12px;
+        }
+
+        .payment-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .payment-header h2 {
+            font-size: 1.8rem;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .payment-form {
+            display: grid;
+            gap: 20px;
+        }
+
+        .form-group {
+            position: relative;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #34495e;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 1px solid #bdc3c7;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.95rem;
+            transition: all 0.3s ease;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+        }
+
+        .split-inputs {
+            display: flex;
+            gap: 15px;
+        }
+
+        .split-inputs .form-group {
+            flex: 1;
+        }
+
+        .pay-button {
+            width: 100%;
+            padding: 15px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            font-weight: 600;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 20px;
+        }
+
+        .pay-button:hover {
+            background-color: #2980b9;
+        }
+
+        #confetti-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 9999;
+        }
+
+        @media (max-width: 768px) {
+            .payment-wrapper {
+                flex-direction: column;
+            }
+        }
+.card {
+            width: 100%;
+            height: 450px;
+            position: relative;
+            transition: transform 0.6s, box-shadow 0.3s;
+            transform-style: preserve-3d;
+            cursor: pointer;
+            border-radius: 20px;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.15);
+        }
+
+        .card:hover {
+            box-shadow: 0 30px 60px rgba(0,0,0,0.2);
+        }
+
+        .card-front {
+            background: linear-gradient(145deg, #4a90e2, #2c3e50);
+            color: white;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 30px;
+            background-image: 
+                linear-gradient(145deg, #4a90e2, #2c3e50),
+                radial-gradient(circle at bottom right, rgba(255,255,255,0.2) 0%, transparent 50%);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card-front::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(
+                45deg, 
+                transparent, 
+                rgba(255,255,255,0.1), 
+                transparent
+            );
+            transform: rotate(-45deg);
+            animation: shine 5s infinite linear;
+        }
+
+        @keyframes shine {
+            0% {
+                transform: rotate(-45deg) translateX(-100%);
+            }
+            100% {
+                transform: rotate(-45deg) translateX(100%);
+            }
+        }
+
+        .card-back {
+            background: linear-gradient(135deg, #34495e, #2c3e50);
+            transform: rotateY(180deg);
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card-back::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                linear-gradient(
+                    135deg, 
+                    rgba(255,255,255,0.1) 0%, 
+                    transparent 50%
+                );
+        }
+
+        .mastercard-logo {
+            width: 70px;
+            height: 45px;
+            background: 
+                radial-gradient(circle at center, #ff5f00 30%, #eb001b 70%);
+            clip-path: polygon(20% 0%, 80% 0%, 100% 20%, 100% 80%, 80% 100%, 20% 100%, 0% 80%, 0% 20%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            color: white;
+            font-size: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+        }
+
+        .card-chip {
+            width: 60px;
+            height: 45px;
+            background: linear-gradient(45deg, #f1c40f, #e67e22);
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            position: relative;
+        }
+
+        .card-chip::before {
+            content: '';
+            position: absolute;
+            top: 25%;
+            left: 10%;
+            width: 80%;
+            height: 50%;
+            background: rgba(255,255,255,0.1);
+            transform: skewX(-15deg);
+        }
+
+        .card-number {
+            font-size: 1.6rem;
+            letter-spacing: 4px;
+            margin-top: 20px;
+            font-weight: 300;
+            font-family: 'Courier New', monospace;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+        }
+
+        .card-details {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 20px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .card-back-content {
+            width: 100%;
+            height: 60px;
+            background-color: #f1f1f1;
+            margin-top: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card-back-content::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: repeating-linear-gradient(
+                45deg,
+                #e0e0e0,
+                #e0e0e0 10px,
+                #f0f0f0 10px,
+                #f0f0f0 20px
+            );
+        }
+
+        .security-code {
+            background-color: white;
+            padding: 8px 15px;
+            border-radius: 5px;
+            margin-top: 15px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="payment-wrapper">
+        <div class="card-container">
+            <div class="card">
+                <div class="card-front">
+                    <div class="card-logo">
+                        <div class="mastercard-logo">MC</div>
+                    </div>
+                    
+                    <div class="card-chip"></div>
+                    
+                    <div class="card-number">
+                        •••• •••• •••• 1234
+                    </div>
+                    
+                    <div class="card-details">
+                        <div class="card-holder">JOHN DOE</div>
+                        <div class="card-expiry">12/25</div>
+                    </div>
+                </div>
+                
+                <div class="card-back">
+                    <div class="card-back-content"></div>
+                    <div class="security-code">CVV: 123</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="payment-container">
+            <div class="payment-header">
+                <h2>Bankkártyás Fizetés</h2>
+            </div>
+
+            <form id="paymentForm" class="payment-form">
+                <div class="form-group">
+                    <label>Kártyatulajdonos teljes neve</label>
+                    <input type="text" placeholder="Vezetéknév Keresztnév" required>
+                </div>
+                
+                <div class="form-group">
+                    <label>Kártyaszám</label>
+                    <input type="text" placeholder="0000 0000 0000 0000" required>
+                </div>
+                
+                <div class="split-inputs">
+                    <div class="form-group">
+                        <label>Lejárat</label>
+                        <input type="text" placeholder="HH/ÉÉ" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>CVV/CVC</label>
+                        <input type="text" placeholder="***" required>
+                    </div>
+                </div>
+                
+                <button type="submit" class="pay-button">Fizetés Véglegesítése</button>
+            </form>
+        </div>
+    </div>
+
+    <canvas id="confetti-canvas"></canvas>
+
+    <script>
+        const card = document.querySelector('.card');
+        card.addEventListener('click', () => {
+            card.style.transform = card.style.transform === 'rotateY(180deg)' 
+                ? 'rotateY(0deg)' 
+                : 'rotateY(180deg)';
+        });
+
+        document.getElementById('paymentForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            triggerConfetti();
+        });
+
+        function triggerConfetti() {
+            const canvas = document.getElementById('confetti-canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+
+            const colors = ['#4a90e2', '#2ecc71', '#f1c40f', '#e74c3c'];
+            const confettiCount = 200;
+            const confetti = [];
+
+            function createConfetti() {
+                for (let i = 0; i < confettiCount; i++) {
+                    confetti.push({
+                        x: Math.random() * canvas.width,
+                        y: Math.random() * canvas.height,
+                        size: Math.random() * 10 + 5,
+                        color: colors[Math.floor(Math.random() * colors.length)],
+                        speedY: Math.random() * 5 + 2,
+                        speedX: Math.random() * 4 - 2,
+                        rotation: Math.random() * 360
+                    });
+                }
+            }
+
+            function drawConfetti() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                confetti.forEach((particle, index) => {
+                    ctx.save();
+                    ctx.translate(particle.x, particle.y);
+                    ctx.rotate(particle.rotation * Math.PI / 180);
+                    ctx.fillStyle = particle.color;
+                    ctx.fillRect(-particle.size/2, -particle.size/2, particle.size, particle.size);
+                    ctx.restore();
+
+                    particle.y += particle.speedY;
+                    particle.x += particle.speedX;
+                    particle.rotation += 5;
+
+                    if (particle.y > canvas.height) {
+                        confetti.splice(index, 1);
+                    }
+                });
+
+                if (confetti.length > 0) {
+                    requestAnimationFrame(drawConfetti);
+                } else {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                }
+            }
+
+            createConfetti();
+            drawConfetti();
+        }
+
+        window.addEventListener('resize', function() {
+            const canvas = document.getElementById('confetti-canvas');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+    </script>
+</body>
+</html>
